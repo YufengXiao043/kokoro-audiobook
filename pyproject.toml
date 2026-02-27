@@ -1,0 +1,30 @@
+[project]
+name = "kokoro-audiobook"
+version = "0.1.0"
+description = "Local offline TTS audiobook pipeline using Kokoro-82M"
+requires-python = ">=3.11"
+dependencies = [
+    "kokoro>=0.9.2",
+    "soundfile>=0.12.1",
+    "pymupdf>=1.24.0",
+    "trafilatura>=1.12.0",
+    "tqdm>=4.66.0",
+    "numpy>=1.26.0",
+    "pip>=24.0",  # kokoro downloads spacy model (en_core_web_sm) via pip at first run
+]
+
+[tool.uv]
+# CPU-only torch — avoids pulling CUDA/ROCm wheels (several GB each)
+override-dependencies = [
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }

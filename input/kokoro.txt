@@ -1,0 +1,63 @@
+ Before you can generate audio
+
+  Step 1 — Install espeak-ng
+
+  Kokoro TTS uses espeak-ng internally for phoneme generation. Without it, generate.py will crash immediately.
+
+  1. Go to: https://github.com/espeak-ng/espeak-ng/releases
+  2. Download the latest espeak-ng-XXXXXX-x64.msi file
+  3. Run the installer — accept all defaults
+  4. The installer adds espeak-ng to your PATH automatically
+  5. Open a new terminal and verify: espeak-ng --version
+
+  ---
+  Step 2 — Install ffmpeg
+
+  pydub needs ffmpeg to convert the generated audio to MP3.
+
+  1. Go to: https://www.gyan.dev/ffmpeg/builds/
+  2. Download ffmpeg-release-essentials.zip (under "release builds")
+  3. Extract it anywhere, e.g. C:\ffmpeg\
+  4. Add the bin folder to your system PATH:
+    - Open Start → "Edit the system environment variables"
+    - Click Environment Variables
+    - Under System variables, find Path → click Edit
+    - Click New → paste C:\ffmpeg\bin (or wherever you extracted it)
+    - Click OK on all dialogs
+  5. Open a new terminal and verify: ffmpeg -version
+
+  ---
+  Step 3 — Add uv to your PATH (once, permanently)
+
+  uv was installed this session but isn't in your permanent PATH yet. To use it in future terminals without running
+  setup.bat:
+
+  - Open Start → "Edit the system environment variables"
+  - Add C:\Users\肖驭风\.local\bin to your system PATH (same way as ffmpeg above)
+
+  Alternatively, just always run setup.bat first — it handles this automatically.
+
+  ---
+  Step 4 — Run setup.bat
+
+  From the project folder, double-click setup.bat (or run it in a terminal). It will:
+  - Confirm uv and Python are ready
+  - Run uv sync (skips re-downloading if already done)
+  - Check for espeak-ng
+  - Pre-download the Kokoro model weights (~330 MB, once only)
+
+  ---
+  Step 5 — You're ready
+
+  :: In a terminal inside E:\kokoro-audiobook\
+
+  :: Option A: start from a PDF
+  uv run python src/extract.py input/mybook.pdf
+  uv run python src/generate.py input/mybook.txt
+
+  :: Option B: start from a URL
+  uv run python src/extract.py "https://example.com/article"
+  uv run python src/generate.py input/extracted.txt
+
+  :: Then open the player
+  start player\player.html
