@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cmd.exe:*)",
       "Bash(powershell.exe:*)",
-      "Bash(export:*)"
+      "Bash(export:*)",
+      "Bash(find /e/kokoro-audiobook -type f -exec ls -lh {} ;)"
     ]
   }
 }

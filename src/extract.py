@@ -44,8 +44,11 @@ def extract_pdf(pdf_path: Path) -> str:
     return clean_text(raw)
 
 
-def extract_url(url: str) -> str:
-    """Extract article body from a web URL using trafilatura."""
+def extract_url(url: str) -> tuple[str, str | None]:
+    """Extract article body and title from a web URL using trafilatura.
+
+    Returns (text, title) where title may be None if not found.
+    """
     try:
         import trafilatura
     except ImportError:
@@ -58,17 +61,30 @@ def extract_url(url: str) -> str:
         print(f"Error: Could not fetch URL: {url}", file=sys.stderr)
         sys.exit(1)
 
-    text = trafilatura.extract(
+    result = trafilatura.bare_extraction(
         downloaded,
         include_comments=False,
         include_tables=False,
         no_fallback=False,
     )
-    if not text:
+
+    if result is None:
         print("Error: Could not extract readable text from the page.", file=sys.stderr)
         sys.exit(1)
 
-    return clean_text(text)
+    # bare_extraction() returns a Metadata dataclass (trafilatura >= 0.9) or dict (older)
+    if isinstance(result, dict):
+        raw_text: str = result.get("text") or ""
+        title: str | None = result.get("title") or None
+    else:
+        raw_text = getattr(result, "text", None) or ""
+        title = getattr(result, "title", None) or None
+
+    if not raw_text:
+        print("Error: Could not extract readable text from the page.", file=sys.stderr)
+        sys.exit(1)
+
+    return clean_text(raw_text), title
 
 
 def main() -> None:
@@ -94,7 +110,7 @@ def main() -> None:
 
     # Extract text
     if is_url(source):
-        text = extract_url(source)
+        text, _title = extract_url(source)  # title ignored in standalone CLI mode
         default_output = input_dir / "extracted.txt"
     else:
         pdf_path = Path(source)

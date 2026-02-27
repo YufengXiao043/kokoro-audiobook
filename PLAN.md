@@ -1,85 +1,89 @@
-# PLAN.md — Development Scratchpad
+# PLAN.md — Architecture Decisions & Project Log
 
-> Claude Code: Use this file as your working scratchpad. Update it as you go.
-> Check off completed items, note decisions and blockers here.
-
-## Phase 1: Project Skeleton & Dependencies
-- [x] Initialize uv project (`uv init`)
-- [x] Add dependencies to pyproject.toml: kokoro, soundfile, pymupdf, trafilatura, tqdm, pydub
-- [x] Pin CPU-only torch (via [[tool.uv.index]] pytorch-cpu source override)
-- [x] Run `uv lock` — 108 packages resolved (CPython 3.11.14)
-- [x] Create directory structure: src/, player/, input/, output/
-- [x] Create setup.bat
-- [x] Run `uv sync` — 106 packages installed, torch 2.10.0+cpu, CUDA=False ✓
-
-## Phase 2: Text Extraction (`src/extract.py`)
-- [x] PDF extraction with pymupdf: read pages, clean text, handle line breaks
-- [x] URL extraction with trafilatura: fetch and extract body text
-- [x] Auto-detect input type (file vs URL)
-- [x] Output cleaned text to input/ directory
-- [ ] Test with a sample PDF and a sample URL
-
-## Phase 3: Audio Generation (`src/generate.py`)
-- [x] Load Kokoro KPipeline
-- [x] Read input text, split into sentences
-- [x] Generate audio sentence by sentence with progress bar (tqdm)
-- [x] Track timestamps per sentence
-- [x] Concatenate audio → .mp3 output (soundfile → WAV → pydub → MP3)
-- [x] Write timestamps.json alongside
-- [x] Resume support (skip completed segments)
-- [x] CLI args: --voice, --speed, --output-dir
-- [ ] Test with a short text passage
-
-## Phase 4: HTML Player (`player/player.html`)
-- [x] Basic layout: text panel + audio controls
-- [x] File picker for audio + timestamps JSON (dual card UI)
-- [x] Play/pause, speed control (0.5×–2×)
-- [x] Sentence highlighting synced via timeupdate + binary search
-- [x] Click-to-seek on any sentence
-- [x] Auto-scroll to keep active sentence visible
-- [x] Keyboard shortcuts (Space = toggle, ← → = skip sentence)
-- [x] Dark/light mode toggle (respects system preference)
-- [x] Progress bar with click-to-seek
-- [ ] Test end-to-end
-
-## Phase 5: Polish & Documentation
-- [x] setup.bat: uv install, espeak-ng check, model pre-download
-- [x] README.md with clear usage instructions
-- [x] End-to-end test: input/kokoro.txt → output/kokoro.wav (9.3MB, 3m21s, 32 sentences)
-- [ ] Test portability: does the folder work from a clean state?
-
-## Bugs Fixed
-- Removed pydub/ffmpeg dependency: generate.py now writes WAV directly via soundfile (browsers support WAV natively)
-- Fixed resume logic: previously would silently produce mismatched audio if WAV was missing but timestamps existed; now sanity-checks WAV duration against timestamps before trusting resume state
-- Added pip to dependencies: kokoro downloads en_core_web_sm via pip at first run
-
-## Known Issues / Warnings (harmless)
-- torch FutureWarning about weight_norm — upstream issue in kokoro/torch, no impact
-- HuggingFace symlinks warning — Windows needs Developer Mode for symlinks; cache still works, just uses more disk
-- "Defaulting repo_id to hexgrad/Kokoro-82M" — suppress with `repo_id='hexgrad/Kokoro-82M'` in KPipeline call (minor)
+> Internal reference for Claude Code. Tracks decisions, known issues, and completed phases.
 
 ---
 
-## Decisions Log
+## Current State (Phase 6 complete)
 
-### Phase 1 (2026-02-26)
-- Using `uv` installed to `~/.local/bin` (no global Python needed)
-- Python 3.11 pinned in pyproject.toml
-- torch CPU-only: using `--index-url https://download.pytorch.org/whl/cpu` via tool override
-- kokoro package: `kokoro` on PyPI requires torch + espeak-ng system dep
-- soundfile for reading WAV arrays; pydub + ffmpeg for MP3 output
-  - Alternative: use scipy.io.wavfile (no extra dep) but pydub gives MP3 easily
-  - Decision: use pydub with ffmpeg for MP3 concatenation; soundfile for reading
-- tqdm for progress bars
-- pymupdf (PyMuPDF) for PDF — package name is `pymupdf`, import as `fitz`
-- trafilatura for URL extraction
+All phases complete. The pipeline is fully functional end-to-end:
+- `run.py` — unified entry point (extract + generate + auto-open player)
+- `extract.py` — PDF (pymupdf) + URL (trafilatura) → clean text
+- `generate.py` — Kokoro KPipeline → WAV + timestamps JSON
+- `utils.py` — `clean_text`, `split_sentences`, `make_output_stem`, `slugify`
+- `player.html` — self-contained player with drag-and-drop, dark mode, keyboard shortcuts
 
-## Open Questions
+---
 
-- Does `kokoro` PyPipeline output numpy arrays directly? Yes — KPipeline yields (gs, ps, audio) tuples where audio is numpy float32.
-- ffmpeg: must be installed separately or bundled. Will note in setup.bat and README.
-  - Alternative: use `pydub` with ffmpeg, or use `soundfile` + `numpy` to write WAV then convert via ffmpeg subprocess
-  - Decision: write WAV with soundfile/scipy, then use pydub to convert to MP3 (pydub needs ffmpeg in PATH)
+## Completed Phases
 
-## Known Issues
-<!-- Track bugs or limitations discovered during development -->
+### Phase 1: Project skeleton
+- uv project initialized, Python 3.11 pinned
+- CPU-only torch via `[[tool.uv.index]]` pytorch-cpu source override
+- Directory structure: `src/`, `player/`, `input/`, `output/`
+- `setup.bat` created
+
+### Phase 2: Text extraction (`src/extract.py`)
+- PDF: `pymupdf` (import as `fitz`) — fast, pure Python
+- URL: `trafilatura` — extracts article body, strips boilerplate
+- `clean_text()` utility: fixes hyphenated line breaks, normalizes whitespace
+
+### Phase 3: Audio generation (`src/generate.py`)
+- `KPipeline(lang_code='a')` — American English, CPU-only
+- Sentence-by-sentence generation → numpy arrays → `soundfile` writes WAV (PCM_16, 24kHz)
+- Timestamps JSON: `[{text, start, end}]` in seconds (float, 3dp)
+- Resume: validates WAV duration vs timestamp end before trusting existing files (±2s)
+- Progress saved every 10 sentences via tqdm
+
+### Phase 4: HTML player (`player/player.html`)
+- Fully self-contained (inline CSS + JS, no external deps, works on `file://`)
+- Dual file-card UI + drag-and-drop loading
+- Binary search sentence sync on `timeupdate`
+- Click-to-seek, Space/←/→ keyboard shortcuts
+- Dark mode (respects `prefers-color-scheme`)
+- In-memory position tracking (no `localStorage` — blocked on `file://`)
+
+### Phase 5: Polish
+- `setup.bat`: uv install + espeak-ng check + model pre-download
+- End-to-end test: `input/kokoro.txt` → `output/kokoro.wav` (9.3 MB, 3m21s, 32 sentences)
+
+### Phase 6: Ease-of-use
+- `src/run.py`: unified pipeline (Feature A) — URL/PDF/TXT in one command
+- Smart URL output naming via `slugify(title)` from `bare_extraction()` (Feature B)
+- Auto-opens `player.html` in browser after generation via `webbrowser.open()` (Feature C)
+- Drag-and-drop in player: drop both files → auto-start; drop one → populates card (Feature D)
+
+---
+
+## Key Decisions
+
+| Decision | Rationale |
+|---|---|
+| WAV output (not MP3) | Browsers support WAV natively — no ffmpeg needed |
+| `soundfile` for audio write | Pure Python, no system dependency, supports PCM_16 |
+| `pymupdf` for PDF | Fast, pure Python wheel, good text layout handling |
+| `trafilatura` for URL | Best-in-class article extraction, minimal noise |
+| CPU-only torch | `[[tool.uv.index]]` pytorch-cpu override — avoids ~3 GB CUDA wheels |
+| `pip` as a dependency | `kokoro` calls `pip` at first run to download `en_core_web_sm` via spacy |
+| Regex sentence splitter | Paragraph-aware, handles smart quotes, no NLTK/spacy dependency |
+| In-memory position | `localStorage` is blocked on `file://` protocol in all browsers |
+| `bare_extraction()` for URLs | Returns `Metadata` object with `.title` + `.text` in one fetch |
+
+---
+
+## Known Warnings (harmless)
+
+- **torch FutureWarning** about `weight_norm` — upstream kokoro/torch issue, no impact
+- **HuggingFace symlinks** — Windows needs Developer Mode; cache works anyway (uses copies)
+- **"Defaulting repo_id to hexgrad/Kokoro-82M"** — suppress with explicit `repo_id` arg in KPipeline
+
+---
+
+## Bugs Fixed
+
+- **pydub/ffmpeg removed**: original plan used pydub for MP3 output. Switched to WAV
+  via soundfile — simpler, zero system deps, browsers play WAV natively.
+- **Resume bug**: stale timestamps + missing WAV caused silent mismatch. Fixed by
+  comparing WAV duration vs `timestamps[-1]["end"]` before trusting resume state.
+- **pip missing from venv**: kokoro downloads `en_core_web_sm` via pip at first run.
+  Added `pip>=24.0` to pyproject.toml dependencies.

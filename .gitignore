@@ -1,4 +1,4 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -6,5 +6,14 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# Virtual environment (machine-specific — run setup.bat on new machine)
+.venv/
+
+# Generated content (user data, not part of the project)
+input/*
+output/*
+!input/.gitkeep
+!output/.gitkeep
+
+# Claude Code project metadata
+.claude/

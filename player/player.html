@@ -126,6 +126,7 @@
     text-align: center;
   }
   .load-card:hover { border-color: var(--accent); }
+  .load-card.drag-over { border-color: var(--accent); background: var(--highlight-bg); }
   .load-card .card-icon { font-size: 2rem; margin-bottom: 8px; }
   .load-card .card-label { font-size: 0.85rem; color: var(--muted); }
   .load-card .card-title { font-weight: 600; margin-bottom: 4px; }
@@ -411,52 +412,122 @@ function applyTheme() {
 applyTheme();
 themeBtn.addEventListener('click', () => { darkMode = !darkMode; applyTheme(); });
 
-// ── File loading ──────────────────────────────────────────────────────
-audioCard.addEventListener('click', () => audioInput.click());
-jsonCard.addEventListener('click', () => jsonInput.click());
-
-audioInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+// ── File loading helpers (shared by click and drag-and-drop) ──────────
+function loadAudioFile(file) {
   if (state.audioObjectUrl) URL.revokeObjectURL(state.audioObjectUrl);
   state.audioObjectUrl = URL.createObjectURL(file);
   audioEl.src = state.audioObjectUrl;
   audioName.textContent = file.name;
   titleLabel.textContent = file.name.replace(/\.[^.]+$/, '');
   state.audioReady = true;
+}
+
+function loadJsonFile(file, onDone) {
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        alert('Invalid timestamps file: expected a non-empty JSON array.');
+        onDone && onDone(false);
+        return;
+      }
+      state.timestamps = parsed;
+      jsonName.textContent = file.name;
+      state.jsonReady = true;
+      onDone && onDone(true);
+    } catch {
+      alert('Could not parse timestamps JSON file.');
+      onDone && onDone(false);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function checkBothReady() {
+  startBtn.disabled = !(state.audioReady && state.jsonReady);
+}
+
+// ── File loading (click) ──────────────────────────────────────────────
+audioCard.addEventListener('click', () => audioInput.click());
+jsonCard.addEventListener('click', () => jsonInput.click());
+
+audioInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  loadAudioFile(file);
   checkBothReady();
 });
 
 jsonInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      state.timestamps = JSON.parse(ev.target.result);
-      if (!Array.isArray(state.timestamps) || state.timestamps.length === 0) {
-        alert('Invalid timestamps file: expected a non-empty JSON array.');
-        return;
-      }
-      jsonName.textContent = file.name;
-      state.jsonReady = true;
-      checkBothReady();
-    } catch {
-      alert('Could not parse timestamps JSON file.');
-    }
-  };
-  reader.readAsText(file);
+  loadJsonFile(file, () => checkBothReady());
 });
-
-function checkBothReady() {
-  startBtn.disabled = !(state.audioReady && state.jsonReady);
-}
 
 startBtn.addEventListener('click', startPlayer);
 loadNewBtn.addEventListener('click', () => {
   audioEl.pause();
   playerPanel.style.display = 'none';
   loadPanel.style.display = 'flex';
+});
+
+// ── Drag-and-drop ─────────────────────────────────────────────────────
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  audioCard.classList.add('drag-over');
+  jsonCard.classList.add('drag-over');
+});
+
+document.addEventListener('dragleave', (e) => {
+  // Only reset when the cursor leaves the browser window entirely
+  if (e.relatedTarget === null) {
+    audioCard.classList.remove('drag-over');
+    jsonCard.classList.remove('drag-over');
+  }
+});
+
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  audioCard.classList.remove('drag-over');
+  jsonCard.classList.remove('drag-over');
+
+  const files = Array.from(e.dataTransfer.files);
+  if (!files.length) return;
+
+  // Classify dropped files by extension
+  let audioFile = null, jsonFile = null;
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (ext === 'wav' || ext === 'mp3') audioFile = f;
+    else if (ext === 'json') jsonFile = f;
+  }
+
+  if (audioFile) loadAudioFile(audioFile);
+
+  // After all async loading completes, auto-start if both files are ready
+  const tryAutoStart = () => {
+    if (state.audioReady && state.jsonReady) {
+      startPlayer();
+      audioEl.play().catch(() => {});
+      playBtn.innerHTML = '&#9646;&#9646;';
+    } else {
+      // Partial drop: ensure load panel is visible for manual selection
+      if (playerPanel.style.display !== 'none') {
+        audioEl.pause();
+        playerPanel.style.display = 'none';
+        loadPanel.style.display = 'flex';
+      }
+      checkBothReady();
+    }
+  };
+
+  if (jsonFile) {
+    loadJsonFile(jsonFile, () => tryAutoStart());
+  } else {
+    tryAutoStart();
+  }
 });
 
 // ── Build text panel ──────────────────────────────────────────────────

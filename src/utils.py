@@ -46,3 +46,15 @@ def split_sentences(text: str) -> list[str]:
 def make_output_stem(input_path: Path, output_dir: Path) -> Path:
     """Return base Path (no extension) for output files derived from input_path."""
     return output_dir / input_path.stem
+
+
+def slugify(title: str) -> str:
+    """Convert a page title to a filesystem-safe slug (max 60 chars).
+
+    Example: "My Great Article! (2026)" → "my-great-article-2026"
+    """
+    title = title.lower()
+    title = re.sub(r"[^a-z0-9\s-]", "", title)
+    title = re.sub(r"[\s-]+", "-", title)
+    title = title.strip("-")
+    return title[:60]
