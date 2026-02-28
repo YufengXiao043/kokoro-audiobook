@@ -40,7 +40,20 @@ After setup completes you do not need internet access again.
 
 ## Usage
 
-### One-command pipeline (recommended)
+### GUI launcher — no terminal needed (recommended)
+
+**Double-click `launch.bat`** to open the launcher window.
+
+- Paste a URL, or click **Browse…** to pick a PDF or text file
+- If your clipboard already contains a URL, it is pre-filled automatically
+- Choose voice and speed, then click **Generate Audiobook**
+- The browser opens with audio playing as soon as generation finishes
+
+No terminal, no commands, no file-picking in the player.
+
+---
+
+### Command-line pipeline
 
 `run.py` handles extraction + generation + opening the player in one step:
 
@@ -55,7 +68,10 @@ uv run python src\run.py input\mybook.pdf
 uv run python src\run.py input\mybook.txt
 ```
 
-The output files land in `output\` and the player opens automatically in your browser.
+The output files land in `output\`. A per-book player (`output\mybook_player.html`) is
+also generated and opens automatically — audio and text are pre-loaded, playback starts
+immediately with no file-picking.
+
 Pass `--no-open` to suppress the browser auto-open.
 
 ### Options
@@ -82,9 +98,12 @@ See the [Kokoro model card](https://huggingface.co/hexgrad/Kokoro-82M) for the f
 
 ## Using the Player
 
-After `run.py` finishes, `player\player.html` opens in your browser automatically.
+After `run.py` finishes, a per-book player (`output\mybook_player.html`) opens in your
+browser with audio and text already loaded — no clicking required.
 
-**Loading files into the player:**
+You can also reopen it any time by double-clicking `output\mybook_player.html`.
+
+**If using the generic `player\player.html` directly:**
 
 - **Drag and drop** both `output\yourbook.wav` and `output\yourbook_timestamps.json`
   onto the player window at once — playback starts automatically.
@@ -133,19 +152,24 @@ uv run python src\generate.py input\mybook.txt --output-dir D:\audiobooks
 
 ```
 kokoro-audiobook\
+├── launch.bat              ← Double-click to open the GUI launcher
 ├── setup.bat               ← Run once on a new machine
 ├── README.md               ← This file
 ├── pyproject.toml          ← Python dependencies (managed by uv)
 ├── uv.lock                 ← Pinned dependency versions (do not edit)
 ├── src\
-│   ├── run.py              ← Unified pipeline (recommended entry point)
+│   ├── launcher.py         ← GUI launcher (opened by launch.bat)
+│   ├── run.py              ← Command-line pipeline entry point
 │   ├── extract.py          ← PDF / URL → clean text
 │   ├── generate.py         ← Text → audio + timestamps JSON
 │   └── utils.py            ← Shared helpers
 ├── player\
-│   └── player.html         ← Self-contained audiobook player
+│   └── player.html         ← Generic player (drag-and-drop loading)
 ├── input\                  ← Drop PDFs or text files here
-└── output\                 ← Generated .wav and .json files land here
+└── output\                 ← Generated files land here
+    ├── mybook.wav              ← Audio
+    ├── mybook_timestamps.json  ← Sync data
+    └── mybook_player.html      ← Auto-generated per-book player
 ```
 
 ---

@@ -412,6 +412,25 @@ function applyTheme() {
 applyTheme();
 themeBtn.addEventListener('click', () => { darkMode = !darkMode; applyTheme(); });
 
+// ── Auto-start: opened as a generated per-book player (via run.py) ────
+// run.py injects window._AUTOLOAD = {audioSrc, timestamps} into the
+// generated output/<stem>_player.html. Not present in the generic player.
+if (window._AUTOLOAD) {
+  const al = window._AUTOLOAD;
+  audioEl.src = al.audioSrc;
+  const stem = al.audioSrc.split('/').pop();
+  audioName.textContent = stem;
+  titleLabel.textContent = stem.replace(/\.[^.]+$/, '');
+  state.timestamps = al.timestamps;
+  state.audioReady = true;
+  state.jsonReady = true;
+  startPlayer();
+  audioEl.addEventListener('canplay', () => {
+    audioEl.play().catch(() => {});
+    playBtn.innerHTML = '&#9646;&#9646;';
+  }, { once: true });
+}
+
 // ── File loading helpers (shared by click and drag-and-drop) ──────────
 function loadAudioFile(file) {
   if (state.audioObjectUrl) URL.revokeObjectURL(state.audioObjectUrl);

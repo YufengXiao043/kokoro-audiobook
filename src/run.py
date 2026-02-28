@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 import webbrowser
 from pathlib import Path
@@ -17,6 +18,40 @@ from urllib.parse import urlparse
 from extract import extract_url, extract_pdf, is_url
 from generate import generate_audio
 from utils import split_sentences, make_output_stem, slugify
+
+
+def generate_player_html(
+    wav_path: Path,
+    timestamps_path: Path,
+    player_template: Path,
+) -> Path:
+    """Inject _AUTOLOAD data into a copy of player.html placed beside the audio.
+
+    The generated output/<stem>_player.html opens and starts playing immediately
+    with no file-picker interaction — the browser loads the WAV via a relative path
+    and the timestamps are embedded inline as JSON.
+
+    Returns the path to the generated file.
+    """
+    timestamps = json.loads(timestamps_path.read_text(encoding="utf-8"))
+    audio_src = "./" + wav_path.name  # relative — both files live in output/
+
+    # Serialize timestamps; escape </ to prevent premature </script> termination
+    ts_json = json.dumps(timestamps, ensure_ascii=False, separators=(",", ":"))
+    ts_json = ts_json.replace("</", "<\\/")
+
+    autoload_block = (
+        "<script>\n"
+        f'window._AUTOLOAD={{audioSrc:"{audio_src}",timestamps:{ts_json}}};\n'
+        "</script>"
+    )
+
+    html = player_template.read_text(encoding="utf-8")
+    html = html.replace("</head>", autoload_block + "\n</head>", 1)
+
+    out_path = wav_path.parent / (wav_path.stem + "_player.html")
+    out_path.write_text(html, encoding="utf-8")
+    return out_path
 
 
 def main() -> None:
@@ -116,15 +151,15 @@ def main() -> None:
     output_stem = output_dir / output_stem_name
     wav_path, ts_path = generate_audio(sentences, args.voice, args.speed, output_stem)
 
-    # ── Auto-open player ───────────────────────────────────────────────
+    # ── Generate per-book player and auto-open ─────────────────────────
     if not args.no_open:
-        player_path = project_root / "player" / "player.html"
-        if player_path.exists():
-            player_uri = player_path.as_uri()
-            print(f"Opening player: {player_path}", file=sys.stderr)
-            webbrowser.open(player_uri)
+        player_template = project_root / "player" / "player.html"
+        if player_template.exists():
+            generated = generate_player_html(wav_path, ts_path, player_template)
+            print(f"Opening: {generated}", file=sys.stderr)
+            webbrowser.open(generated.as_uri())
         else:
-            print(f"Warning: Player not found at {player_path}", file=sys.stderr)
+            print(f"Warning: Player template not found at {player_template}", file=sys.stderr)
 
 
 if __name__ == "__main__":

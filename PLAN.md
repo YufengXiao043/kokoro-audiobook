@@ -50,8 +50,32 @@ All phases complete. The pipeline is fully functional end-to-end:
 ### Phase 6: Ease-of-use
 - `src/run.py`: unified pipeline (Feature A) — URL/PDF/TXT in one command
 - Smart URL output naming via `slugify(title)` from `bare_extraction()` (Feature B)
-- Auto-opens `player.html` in browser after generation via `webbrowser.open()` (Feature C)
+- Auto-opens player in browser after generation via `webbrowser.open()` (Feature C)
 - Drag-and-drop in player: drop both files → auto-start; drop one → populates card (Feature D)
+
+### Phase 8: GUI launcher (`src/launcher.py` + `launch.bat`)
+- `launch.bat` uses `.venv\Scripts\pythonw.exe` directly — no console window, no uv overhead
+- Falls back with a clear message if setup.bat hasn't been run yet
+- `src/launcher.py`: tkinter GUI (stdlib only, no new dependency)
+  - URL input pre-filled from clipboard if it contains an http/https URL
+  - Browse button for PDF/TXT via `filedialog.askopenfilename`
+  - Voice combobox (readonly) + speed combobox (editable)
+  - Generate button disabled during generation to prevent double-submit
+  - Background thread runs pipeline; `sys.stderr` redirected to `_QueueStream` → `queue.Queue`
+  - Main thread polls queue every 100ms via `root.after()` — tkinter thread-safety requirement
+  - Indeterminate `ttk.Progressbar` spins during generation
+  - Status label shows live pipeline messages (tqdm \r stripped, last line shown)
+  - Late imports in `_run()` thread: GUI opens instantly, heavy packages load on first Generate
+  - Opens generated `output/<stem>_player.html` via `webbrowser.open()` on success
+
+### Phase 7: Zero-click player
+- `run.py` generates `output/<stem>_player.html` via `generate_player_html()`
+- Injects `window._AUTOLOAD = {audioSrc: './stem.wav', timestamps: [...]}` before `</head>`
+- `player.html` detects `_AUTOLOAD` at startup → sets `audioEl.src`, populates state, calls `startPlayer()`, auto-plays on `canplay`
+- Browser loads WAV via relative path (media elements are not subject to `file://` CORS restriction)
+- Timestamps embedded inline as JSON (small); WAV is NOT embedded (no size limit)
+- `<\\/` escaping prevents accidental early `</script>` termination in timestamp text
+- Generic `player/player.html` unchanged when opened directly (no `_AUTOLOAD` present)
 
 ---
 
