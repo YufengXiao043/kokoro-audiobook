@@ -17,3 +17,5 @@ output/*
 
 # Claude Code project metadata
 .claude/
+PLAN.md
+CLAUDE.md

@@ -45,10 +45,20 @@ def extract_pdf(pdf_path: Path) -> str:
 
 
 def extract_url(url: str) -> tuple[str, str | None]:
-    """Extract article body and title from a web URL using trafilatura.
+    """Extract article body and title from a web URL.
+
+    Dispatches to site-specific extractors when available (e.g. Bilibili),
+    otherwise falls back to trafilatura.
 
     Returns (text, title) where title may be None if not found.
     """
+    # ── Site-specific extractors ──────────────────────────────────────
+    from bilibili import is_bilibili_url, extract_bilibili
+
+    if is_bilibili_url(url):
+        return extract_bilibili(url)
+
+    # ── Generic fallback: trafilatura ─────────────────────────────────
     try:
         import trafilatura
     except ImportError:

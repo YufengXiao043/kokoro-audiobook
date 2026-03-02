@@ -1,6 +1,7 @@
 # Kokoro Audiobook Pipeline
 
 Convert PDFs and web articles into audio files with a synchronized text-highlighting player.
+Supports Bilibili articles, general web pages, and PDFs.
 Runs entirely on Windows — no internet required after setup, no GPU needed, no Docker.
 
 ---
@@ -58,8 +59,12 @@ No terminal, no commands, no file-picking in the player.
 `run.py` handles extraction + generation + opening the player in one step:
 
 ```bat
-:: From a web URL
+:: From a web URL (general)
 uv run python src\run.py "https://en.wikipedia.org/wiki/Audiobook"
+
+:: From a Bilibili article or short link
+uv run python src\run.py "https://www.bilibili.com/read/cv12345678"
+uv run python src\run.py "https://b23.tv/xxxxx"
 
 :: From a PDF
 uv run python src\run.py input\mybook.pdf
@@ -74,11 +79,26 @@ immediately with no file-picking.
 
 Pass `--no-open` to suppress the browser auto-open.
 
+### Supported URL sources
+
+| Source | How it works |
+|---|---|
+| **Bilibili articles** (`bilibili.com/read/cv*`, `b23.tv/*`) | Uses the Bilibili API directly — bypasses CAPTCHA |
+| **General web pages** | Uses trafilatura for article body extraction |
+
+Bilibili short links (`b23.tv/xxxxx`) are automatically resolved to their
+destination. Currently only Bilibili *article* pages (`/read/cv*`) are
+supported — video pages are not.
+
 ### Options
 
 ```bat
 :: Choose a different voice
 uv run python src\run.py input\mybook.txt --voice af_bella
+
+:: Chinese voice (auto-detected from text, or force with --lang)
+uv run python src\run.py input\chinese.txt --voice zf_xiaoni
+uv run python src\run.py input\chinese.txt --lang z
 
 :: Adjust speech speed (0.5–2.0, default 1.0)
 uv run python src\run.py input\mybook.txt --speed 1.2
@@ -90,9 +110,20 @@ uv run python src\run.py input\mybook.txt --output-dir D:\audiobooks
 uv run python src\run.py input\mybook.txt --voice af_bella --speed 1.1 --no-open
 ```
 
-**Available voices** (American English): `af_heart` (default), `af_bella`, `af_nicole`,
-`am_adam`, `am_michael` — and British: `bf_emma`, `bm_george`.
+**Available voices:**
+
+| Language | Female | Male |
+|---|---|---|
+| American English | `af_heart` (default), `af_bella`, `af_nicole`, `af_sky` | `am_adam`, `am_michael` |
+| British English | `bf_emma`, `bf_isabella` | `bm_george`, `bm_lewis` |
+| Mandarin Chinese | `zf_xiaobei`, `zf_xiaoni`, `zf_xiaoxiao`, `zf_xiaoyi` | `zm_yunjian`, `zm_yunxi`, `zm_yunxia`, `zm_yunyang` |
+
 See the [Kokoro model card](https://huggingface.co/hexgrad/Kokoro-82M) for the full list.
+
+**Language auto-detection:** The pipeline detects whether the input text is Chinese
+or English and picks the matching voice automatically. If you select an English voice
+but the text is Chinese, the pipeline switches to `zf_xiaoni` and prints a notice.
+You can also force a language with `--lang z` (Chinese) or `--lang a` (English).
 
 ---
 
@@ -160,7 +191,8 @@ kokoro-audiobook\
 ├── src\
 │   ├── launcher.py         ← GUI launcher (opened by launch.bat)
 │   ├── run.py              ← Command-line pipeline entry point
-│   ├── extract.py          ← PDF / URL → clean text
+│   ├── extract.py          ← PDF / URL → clean text (dispatches to site extractors)
+│   ├── bilibili.py         ← Bilibili article extractor (API-based)
 │   ├── generate.py         ← Text → audio + timestamps JSON
 │   └── utils.py            ← Shared helpers
 ├── player\
@@ -212,6 +244,12 @@ Re-run `setup.bat` after installing espeak-ng.
 Harmless. Windows requires Developer Mode for symlinks; the model cache still works,
 it just uses copies instead. Enable Developer Mode in Windows Settings → For Developers
 to suppress it.
+
+**"Unsupported Bilibili URL format" or "Could not extract readable text"**
+Currently only Bilibili article pages (`/read/cv*`) are supported via the API.
+Video pages, dynamic posts, and other Bilibili content types are not yet handled.
+For non-Bilibili sites that fail, the page may use JavaScript rendering or
+anti-bot protection that trafilatura cannot bypass.
 
 **Generation is slow**
 CPU inference is ~10–30× real-time. A 300-page book may take 30–90 minutes.

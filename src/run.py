@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 from extract import extract_url, extract_pdf, is_url
 from generate import generate_audio
-from utils import split_sentences, make_output_stem, slugify
+from utils import split_sentences, make_output_stem, slugify, detect_language, resolve_voice
 
 
 def generate_player_html(
@@ -77,6 +77,12 @@ def main() -> None:
         "--output-dir",
         default=None,
         help="Directory for output files (default: output/ in project root).",
+    )
+    parser.add_argument(
+        "--lang",
+        default=None,
+        help="Language code: 'a' (American English), 'z' (Chinese). "
+             "Auto-detected from text if not specified.",
     )
     parser.add_argument(
         "--no-open",
@@ -147,9 +153,13 @@ def main() -> None:
         print("Error: No sentences found in input.", file=sys.stderr)
         sys.exit(1)
 
+    # ── Language detection and voice resolution ────────────────────────
+    lang_code = args.lang if args.lang else detect_language(text)
+    voice = resolve_voice(args.voice, lang_code)
+
     # ── Generate audio ─────────────────────────────────────────────────
     output_stem = output_dir / output_stem_name
-    wav_path, ts_path = generate_audio(sentences, args.voice, args.speed, output_stem)
+    wav_path, ts_path = generate_audio(sentences, voice, args.speed, output_stem, lang_code)
 
     # ── Generate per-book player and auto-open ─────────────────────────
     if not args.no_open:

@@ -20,6 +20,8 @@ VOICES = [
     "af_heart", "af_bella", "af_nicole", "af_sky",
     "am_adam", "am_michael",
     "bf_emma", "bf_isabella", "bm_george", "bm_lewis",
+    "zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi",
+    "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang",
 ]
 SPEEDS = ["0.75", "0.9", "1.0", "1.1", "1.2", "1.5", "2.0"]
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -72,7 +74,7 @@ class App:
         opt = tk.Frame(f)
         opt.grid(row=3, column=0, columnspan=3, sticky="w", pady=(0, 10))
         tk.Label(opt, text="Voice:").pack(side="left")
-        self.voice_var = tk.StringVar(value="af_heart")
+        self.voice_var = tk.StringVar(value="zf_xiaoxiao")
         self._voice_cb = ttk.Combobox(
             opt, textvariable=self.voice_var, values=VOICES, width=13, state="readonly"
         )
@@ -170,7 +172,7 @@ class App:
         from extract import extract_pdf, extract_url, is_url
         from generate import generate_audio
         from run import generate_player_html
-        from utils import slugify, split_sentences
+        from utils import slugify, split_sentences, detect_language, resolve_voice
         import webbrowser
 
         old_stderr = sys.stderr
@@ -206,7 +208,12 @@ class App:
                 q.put("ERROR: No readable sentences found in the input.")
                 return
 
-            wav_path, ts_path = generate_audio(sentences, voice, speed, output_dir / stem)
+            lang_code = detect_language(text)
+            voice = resolve_voice(voice, lang_code)
+
+            wav_path, ts_path = generate_audio(
+                sentences, voice, speed, output_dir / stem, lang_code
+            )
 
             generated = generate_player_html(
                 wav_path, ts_path, PROJECT_ROOT / "player" / "player.html"

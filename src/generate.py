@@ -18,21 +18,24 @@ import numpy as np
 import soundfile as sf
 from tqdm import tqdm
 
-from utils import split_sentences, make_output_stem
+from utils import split_sentences, make_output_stem, detect_language, resolve_voice
 
 SAMPLE_RATE = 24000  # Kokoro outputs at 24 kHz
 
 
-def load_pipeline(voice: str, speed: float):
-    """Load and return a Kokoro KPipeline instance."""
+def load_pipeline(lang_code: str) -> object:
+    """Load and return a Kokoro KPipeline instance for the given language."""
     try:
         from kokoro import KPipeline
     except ImportError:
         print("Error: kokoro not installed. Run: uv sync", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Loading Kokoro pipeline (voice={voice}, speed={speed})...", file=sys.stderr)
-    pipeline = KPipeline(lang_code="a")  # 'a' = American English
+    lang_names = {"a": "American English", "b": "British English",
+                  "z": "Mandarin Chinese", "j": "Japanese"}
+    lang_label = lang_names.get(lang_code, lang_code)
+    print(f"Loading Kokoro pipeline (lang={lang_label})...", file=sys.stderr)
+    pipeline = KPipeline(lang_code=lang_code, repo_id="hexgrad/Kokoro-82M")
     return pipeline
 
 
@@ -41,6 +44,7 @@ def generate_audio(
     voice: str,
     speed: float,
     output_stem: Path,
+    lang_code: str = "a",
 ) -> tuple[Path, Path]:
     """Generate audio for each sentence, concatenate to WAV, write timestamps JSON.
 
@@ -83,7 +87,7 @@ def generate_audio(
         except Exception as e:
             print(f"Warning: Could not load existing files for resume: {e}. Restarting.", file=sys.stderr)
 
-    pipeline = load_pipeline(voice, speed)
+    pipeline = load_pipeline(lang_code)
 
     remaining = sentences[completed_count:]
     current_time = timestamps[-1]["end"] if timestamps else 0.0
@@ -170,6 +174,12 @@ def main() -> None:
         help="Speech speed multiplier (default: 1.0).",
     )
     parser.add_argument(
+        "--lang",
+        default=None,
+        help="Language code: 'a' (American English), 'z' (Chinese). "
+             "Auto-detected from text if not specified.",
+    )
+    parser.add_argument(
         "--output-dir",
         default=None,
         help="Directory for output files (default: output/ in project root).",
@@ -199,7 +209,11 @@ def main() -> None:
         print("Error: No sentences found in input file.", file=sys.stderr)
         sys.exit(1)
 
-    wav_path, ts_path = generate_audio(sentences, args.voice, args.speed, output_stem)
+    # Language detection and voice resolution
+    lang_code = args.lang if args.lang else detect_language(text)
+    voice = resolve_voice(args.voice, lang_code)
+
+    wav_path, ts_path = generate_audio(sentences, voice, args.speed, output_stem, lang_code)
     # Print output paths to stdout for scripting
     print(str(wav_path))
     print(str(ts_path))
